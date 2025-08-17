@@ -32,7 +32,7 @@ async function createProject(req, res, next) {
 
 async function getProject(req, res, next) {
   try {
-    const proj = await Project.findById(req.params.id);
+    const proj = await Project.findById(req.params.id).populate('members', 'email role');
     if (!proj) throw new AppError(404, 'Project not found');
     res.json(proj);
   } catch (e) { next(e); }
@@ -73,8 +73,29 @@ async function patchMembers(req, res, next) {
       ...add.map(String)
     ])).filter(id => !remove.map(String).includes(id));
     await proj.save();
-    res.json(proj);
+    const result = await Project.findById(proj._id).populate('members', 'email role');
+    res.json(result);
   } catch (e) { next(e); }
 }
 
-module.exports = { listProjects, createProject, getProject, patchProject, deleteProject, patchMembers };
+/**
+ * New: return projects assigned to the logged-in user
+ * GET /api/v1/projects/my-projects
+ */
+async function getAssignedProjects(req, res, next) {
+  try {
+    const uid = req.user.id;
+    const projects = await Project.find({ members: uid }).populate('members', 'email role');
+    res.json({ data: projects, total: projects.length });
+  } catch (e) { next(e); }
+}
+
+module.exports = {
+  listProjects,
+  createProject,
+  getProject,
+  patchProject,
+  deleteProject,
+  patchMembers,
+  getAssignedProjects
+};
