@@ -1,22 +1,19 @@
 require('dotenv').config();
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
-const User = require('../models/User');
+const User = require('../src/models/User');
 
 async function run() {
   const uri = process.env.MONGO_URI;
-  if (!uri) { 
-    console.error('Missing MONGO_URI'); process.exit(1);
- }
+  if (!uri) { console.error('Missing MONGO_URI'); process.exit(1); }
   await mongoose.connect(uri);
-        const name = process.env.ADMIN_NAME?.trim() || 'Administrator';
-  const email = process.env.ADMIN_EMAIL || 'admin@ashmit.com';
-  const password = process.env.ADMIN_PASSWORD || 'Ashmit@123';
+  const email = process.env.ADMIN_EMAIL || 'admin@example.com';
+  const password = process.env.ADMIN_PASSWORD || 'Admin@123';
   const passwordHash = await bcrypt.hash(password, 10);
 
   let user = await User.findOne({ email });
   if (!user) {
-    user = await User.create({name, email, passwordHash, role: 'admin' });
+    user = await User.create({ email, passwordHash, role: 'admin' });
     console.log('Admin created:', email);
   } else {
     user.passwordHash = passwordHash;
