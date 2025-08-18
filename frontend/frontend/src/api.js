@@ -1,4 +1,4 @@
-const API_BASE = process.env.REACT_APP_API_BASE || 'http://localhost:8083/api/v1';
+const API_BASE = process.env.REACT_APP_API_BASE || 'https://projectmanager-app.onrender.com/api/v1'
 
 async function request(path, opts = {}) {
   const headers = opts.headers || {};
