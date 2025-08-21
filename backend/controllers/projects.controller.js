@@ -9,7 +9,7 @@ async function listProjects(req, res, next) {
     const q = {};
     if (status) q.status = status;
     if (member) q.members = member;
-    const data = await Project.find(q).skip((page-1)*limit).limit(Number(limit));
+    const data = await Project.find(q).skip((page - 1) * limit).limit(Number(limit));
     const total = await Project.countDocuments(q);
     res.json({ data, total });
   } catch (e) { next(e); }
@@ -41,7 +41,7 @@ async function getProject(req, res, next) {
 async function patchProject(req, res, next) {
   try {
     const updates = {};
-    ['name','description','status'].forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
+    ['name', 'description', 'status'].forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
     const proj = await Project.findByIdAndUpdate(req.params.id, updates, { new: true });
     if (!proj) throw new AppError(404, 'Project not found');
     res.json(proj);

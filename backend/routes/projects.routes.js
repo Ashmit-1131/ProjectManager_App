@@ -13,7 +13,7 @@ const {
 router.use(auth());
 
 // My projects (tester/developer/admin) - must be above admin-only listing
-router.get('/my-projects', requireRole('tester','developer','admin'), getAssignedProjects);
+router.get('/my-projects', requireRole('tester', 'developer', 'admin'), getAssignedProjects);
 
 // Admin-only endpoints
 router.get('/', requireRole('admin'), listProjects);

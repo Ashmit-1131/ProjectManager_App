@@ -1,5 +1,32 @@
 node_modules
+{"id": "68a75d10c65077ae6678f10e",
+  "email": "yims1@example.com",
+  "role": "developer",
+  "password": "yims1@123"
+  }
+  
+  { 
+  "id": "68a75d6bc65077ae6678f112",
+  "email": "yims2@example.com",
+"password": "yims2@123",
+"role": "developer" 
+}
 
-tester10- 68a215d38299983228a14c8e
-dev10- 68a216158299983228a14c92
-bugId- 68a21c1b8299983228a14caf
+{ 
+ "id": "68a75df8c65077ae6678f11a",
+"email": "crio1@example.com",
+"password": "crio1@123",
+"role": "tester" 
+}
+{ 
+ "id": "68a75dabc65077ae6678f116",
+"email": "crio2@example.com",
+"password": "crio2@123",
+"role": "tester" 
+}
+
+{
+  "title": "Login button not working",
+  "description": "Click does nothing",
+  "assignees": ["68a75d6bc65077ae6678f112"]
+}

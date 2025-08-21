@@ -9,7 +9,7 @@ async function listUsers(req, res, next) {
     const q = {};
     if (role) q.role = role;
     if (active !== undefined) q.isActive = active === 'true';
-    const users = await User.find(q).skip((page-1)*limit).limit(Number(limit)).select('-passwordHash');
+    const users = await User.find(q).skip((page - 1) * limit).limit(Number(limit)).select('-passwordHash');
     const total = await User.countDocuments(q);
     res.json({ data: users, total });
   } catch (e) { next(e); }
