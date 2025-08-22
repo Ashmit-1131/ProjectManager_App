@@ -1,4 +1,4 @@
-// src/components/ProjectHubSidebar.jsx
+
 import React, { useEffect, useState } from 'react';
 import { apiGet } from '../api';
 import { useNavigate, useSearchParams } from 'react-router-dom';
