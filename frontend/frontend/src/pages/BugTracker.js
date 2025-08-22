@@ -15,75 +15,88 @@ const StatusPill = ({ status }) => {
 export default function BugTracker() {
   const { id: projectId } = useParams();
   const navigate = useNavigate();
+
   const role = localStorage.getItem('role') || 'admin';
   const userId = localStorage.getItem('userId');
+
   const isAdmin = role === 'admin';
   const isTester = role === 'tester';
   const isDeveloper = role === 'developer';
-  const canCreate = isAdmin || isTester; // developer cannot create
+  const canCreate = isAdmin || isTester;
 
   const [project, setProject] = useState(null);
   const [modules, setModules] = useState([]);
   const [bugs, setBugs] = useState([]);
   const [users, setUsers] = useState([]);
 
-  // form state
   const [moduleId, setModuleId] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [assignees, setAssignees] = useState([]);
 
   async function loadAll() {
-    const [pRes, mRes, uRes] = await Promise.all([
-      apiGet(`/projects/${projectId}`),
-      apiGet(`/projects/${projectId}/modules`),
-      apiGet('/users').catch(() => ({ data: [] })),
-    ]);
-    // apiGet might return response.data or data directly depending on wrapper.
-    // Normalize: if pRes.data exists use that, else use pRes
-    setProject(pRes?.data ?? pRes);
-    setModules(mRes?.data ?? mRes ?? []);
-    setUsers(uRes?.data ?? uRes ?? []);
-    await loadBugs();
+    try {
+      const [pRes, mRes, uRes] = await Promise.all([
+        apiGet(`/projects/${projectId}`),
+        apiGet(`/projects/${projectId}/modules`),
+        apiGet('/users').catch(() => ({ data: [] })),
+      ]);
+
+      const proj = pRes?.data ?? pRes;
+      setProject(proj);
+      setModules(mRes?.data ?? mRes ?? []);
+      setUsers(uRes?.data ?? uRes ?? []);
+      await loadBugs();
+
+      // Membership check
+      // if (proj) {
+      //   const memberIds = (proj.members || []).map(m => String(m?._id ?? m));
+      //   const requesterId = String(userId ?? '');
+      //   if ((isTester || isDeveloper) && !memberIds.includes(requesterId)) {
+      //     alert('You are not assigned to this project');
+      //     // navigate('/dashboard');
+      //   }
+      // }
+    } catch (err) {
+      console.error(err);
+      alert('Failed to load project details');
+      navigate('/dashboard');
+    }
   }
 
   async function loadBugs() {
-    const res = await apiGet(`/projects/${projectId}/bugs`);
-    setBugs(res?.data ?? res ?? []);
+    try {
+      const res = await apiGet(`/projects/${projectId}/bugs`);
+      setBugs(res?.data ?? res ?? []);
+    } catch (err) {
+      console.error(err);
+      setBugs([]);
+    }
   }
 
   useEffect(() => {
     loadAll();
   }, [projectId]);
 
-  // If the user is a tester or developer and not part of this project, redirect them to dashboard
-  useEffect(() => {
-    if (!project) return;
-
-    // Normalize member ids from project.members:
-    const memberIds = (project.members || []).map(m => String(m?._id ?? m));
-    const requesterId = String(userId ?? '');
-
-    if ((isTester || isDeveloper) && !memberIds.includes(requesterId)) {
-      alert("You are not assigned to this project");
-      navigate("/dashboard");
-    }
-  }, [project, isTester, isDeveloper, navigate, userId]);
-
   const projectMembers = useMemo(() => {
-    // Create array of member id strings
     const memberIds = (project?.members || []).map(m => String(m?._id ?? m));
-    // users might be array of user objects -> filter by id match
     return (Array.isArray(users) ? users : []).filter(u => memberIds.includes(String(u._id)));
   }, [users, project]);
 
   async function createBug(e) {
     e.preventDefault();
     if (!moduleId || !title) return;
-    const payload = { title, description, assignees };
-    await apiPost(`/modules/${moduleId}/bugs`, payload);
-    setTitle(''); setDescription(''); setAssignees([]);
-    await loadBugs();
+    try {
+      const payload = { title, description, assignees };
+      await apiPost(`/modules/${moduleId}/bugs`, payload);
+      setTitle('');
+      setDescription('');
+      setAssignees([]);
+      await loadBugs();
+    } catch (err) {
+      console.error(err);
+      alert(err.message || 'Failed to create bug');
+    }
   }
 
   function allowedTransitions(status) {
@@ -97,8 +110,13 @@ export default function BugTracker() {
   }
 
   async function changeStatus(bug, to) {
-    await apiPatch(`/bugs/${bug._id}/status`, { from: bug.status, to, note: '' });
-    await loadBugs();
+    try {
+      await apiPatch(`/bugs/${bug._id}/status`, { from: bug.status, to, note: '' });
+      await loadBugs();
+    } catch (err) {
+      console.error(err);
+      alert(err.message || 'Failed to update status');
+    }
   }
 
   const canClose = (bug) => (isAdmin || isTester) && bug.status === 'solved';
@@ -113,28 +131,45 @@ export default function BugTracker() {
           <div className="text-lg font-semibold mb-4">Create New Bug</div>
           {canCreate ? (
             <form className="space-y-3" onSubmit={createBug}>
-              <select className="p-3 border rounded-lg" value={moduleId} onChange={e => setModuleId(e.target.value)}>
+              <select
+                className="p-3 border rounded-lg"
+                value={moduleId}
+                onChange={e => setModuleId(e.target.value)}
+              >
                 <option value="">Select a module</option>
                 {modules.map(m => (
                   <option key={m._id} value={m._id}>{m.name}</option>
                 ))}
               </select>
 
-              <input className="p-3 border rounded-lg" placeholder="Bug title"
-                     value={title} onChange={e => setTitle(e.target.value)} />
-              <textarea className="p-3 border rounded-lg" rows={4} placeholder="Bug description"
-                        value={description} onChange={e => setDescription(e.target.value)} />
+              <input
+                className="p-3 border rounded-lg"
+                placeholder="Bug title"
+                value={title}
+                onChange={e => setTitle(e.target.value)}
+              />
+              <textarea
+                className="p-3 border rounded-lg"
+                rows={4}
+                placeholder="Bug description"
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+              />
               <div className="space-y-2">
                 <div className="text-sm text-gray-500">Assign to</div>
                 <div className="grid md:grid-cols-2 gap-2">
                   {projectMembers.map(u => (
                     <label key={u._id} className="flex items-center gap-2 text-sm">
-                      <input type="checkbox"
-                             checked={assignees.includes(String(u._id))}
-                             onChange={(e) => {
-                               const id = String(u._id);
-                               setAssignees(s => e.target.checked ? [...s, id] : s.filter(x => x !== id));
-                             }} />
+                      <input
+                        type="checkbox"
+                        checked={assignees.includes(String(u._id))}
+                        onChange={(e) => {
+                          const id = String(u._id);
+                          setAssignees(s =>
+                            e.target.checked ? [...s, id] : s.filter(x => x !== id)
+                          );
+                        }}
+                      />
                       <span>{u.email} <em className="text-gray-400">({u.role})</em></span>
                     </label>
                   ))}
@@ -147,7 +182,7 @@ export default function BugTracker() {
           )}
         </div>
 
-        {/* List */}
+        {/* Bugs List */}
         <div className="bg-white p-6 rounded-2xl shadow-sm">
           <div className="font-semibold mb-3">Bugs</div>
           <table className="w-full">
@@ -175,9 +210,11 @@ export default function BugTracker() {
                           if (to === 'closed' && !canClose(b)) return null;
                           if (to !== 'closed' && !canSolve) return null;
                           return (
-                            <button key={to}
-                                    onClick={() => changeStatus(b, to)}
-                                    className="text-xs px-3 py-1 rounded bg-gray-100 hover:bg-gray-200">
+                            <button
+                              key={to}
+                              onClick={() => changeStatus(b, to)}
+                              className="text-xs px-3 py-1 rounded bg-gray-100 hover:bg-gray-200"
+                            >
                               {to[0].toUpperCase() + to.slice(1)}
                             </button>
                           );

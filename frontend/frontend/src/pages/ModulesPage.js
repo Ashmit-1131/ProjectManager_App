@@ -5,6 +5,7 @@ export default function ModulesPage() {
   const role = localStorage.getItem('role') || 'admin';
   const isAdmin = role === 'admin';
   const isTester = role === 'tester';
+  const isDeveloper = role === 'developer';
   const canCreate = isAdmin || isTester;
 
   const [projects, setProjects] = useState([]);
@@ -14,10 +15,15 @@ export default function ModulesPage() {
   const [loading, setLoading] = useState(false);
 
   async function loadProjects() {
-    const path = isAdmin ? '/projects' : '/projects/my-projects';
-    const res = await apiGet(path);
-    const list = res.data || res || [];
-    setProjects(Array.isArray(list) ? list : []);
+    try {
+      // backend ensures filtering by role/membership
+      const res = await apiGet('/projects');
+      const list = res.data || res || [];
+      setProjects(Array.isArray(list) ? list : []);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to load projects');
+    }
   }
 
   async function loadModules(pid) {
@@ -28,8 +34,12 @@ export default function ModulesPage() {
     setLoading(true);
     try {
       const res = await apiGet(`/projects/${pid}/modules`);
-      const list = res.data?.data || res.data || res || [];
+      const list = res.data || res || [];
       setModules(Array.isArray(list) ? list : []);
+    } catch (err) {
+      console.error(err);
+      alert('You are not assigned to this project');
+      setModules([]);
     } finally {
       setLoading(false);
     }
@@ -37,10 +47,10 @@ export default function ModulesPage() {
 
   useEffect(() => {
     loadProjects();
-  }, [isAdmin, isTester]);
+  }, []);
 
   useEffect(() => {
-    loadModules(selectedProject);
+    if (selectedProject) loadModules(selectedProject);
   }, [selectedProject]);
 
   async function addModule(e) {
@@ -48,13 +58,14 @@ export default function ModulesPage() {
     if (!selectedProject || !name) return;
     try {
       const res = await apiPost(`/projects/${selectedProject}/modules`, { name });
-      const newMod = res.data?.data;
+      const newMod = res.data || res;
       if (newMod) {
         setModules(prev => [newMod, ...prev]);
         setName('');
       }
     } catch (err) {
       console.error(err);
+      alert(err.message || 'Failed to create module');
     }
   }
 
@@ -84,18 +95,13 @@ export default function ModulesPage() {
                 onChange={e => setName(e.target.value)}
               />
               <div>
-                <button
-                  type="submit"
-                  className="px-5 py-3 bg-blue-600 text-white rounded-lg"
-                >
+                <button type="submit" className="px-5 py-3 bg-blue-600 text-white rounded-lg">
                   Add
                 </button>
               </div>
             </>
           ) : (
-            <div className="text-sm text-gray-500">
-              Developers can’t create modules.
-            </div>
+            <div className="text-sm text-gray-500">Developers can’t create modules.</div>
           )}
         </form>
       </div>

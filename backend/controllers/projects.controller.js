@@ -37,7 +37,7 @@ async function getProject(req, res, next) {
     const requester = req.user || {};
 
     // fetch project and populate members (email + role)
-    const proj = await Project.findById(projectId).populate('members', 'email role');
+    const proj = await Project.findById(projectId).populate('members', 'role');
     if (!proj) {
       throw new AppError(404, 'Project not found');
     }
