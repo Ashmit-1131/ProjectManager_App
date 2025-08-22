@@ -1,127 +1,145 @@
-import React, { useEffect, useState } from 'react';
-import { apiGet, apiPost, apiPatch } from '../api';
-import { useNavigate } from 'react-router-dom';
 
-const ProjectsPage = () => {
+import React, { useEffect, useMemo, useState } from 'react';
+import { apiDelete, apiGet, apiPatch, apiPost } from '../api';
+
+export default function ProjectsPage() {
+  const role = localStorage.getItem('role') || 'admin';
+  const isAdmin = role === 'admin';
+
   const [projects, setProjects] = useState([]);
-  const [users, setUsers] = useState([]);
-  const [name, setName] = useState('');
-  const [desc, setDesc] = useState('');
-  const [members, setMembers] = useState('');
-  const navigate = useNavigate();
-  const role = localStorage.getItem('role') || '';
+  const [users, setUsers] = useState([]); // for assigning
 
-  useEffect(() => {
-    // If not admin, redirect (defence-in-depth)
-    if (role !== 'admin') {
-      navigate('/dashboard', { replace: true });
-      return;
-    }
-    load();
-  }, []);
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+
+  const [editOpen, setEditOpen] = useState(false);
+  const [editProject, setEditProject] = useState(null);
+  const [assignIds, setAssignIds] = useState([]);
 
   async function load() {
-    try {
-      const p = await apiGet('/projects');
-      setProjects(p.data || p);
-
+    const path = isAdmin ? '/projects' : '/projects/my-projects';
+    const res = await apiGet(path);
+    setProjects(res.data || res || []);
+    if (isAdmin) {
       const u = await apiGet('/users');
-      setUsers(u.data || u);
-    } catch (e) {
-      console.error(e);
+      setUsers(u.data || u || []);
+    } else {
+      // still fetch users list for modal (admin only opens modal)
+      try {
+        const u = await apiGet('/users');
+        setUsers(u.data || u || []);
+      } catch {}
     }
   }
 
-  async function create(e) {
+  useEffect(()=>{ load(); }, [isAdmin]);
+
+  async function addProject(e) {
     e.preventDefault();
-    const mem = members.split(',').map(s => s.trim()).filter(Boolean);
-    await apiPost('/projects', { name, description: desc, members: mem });
-    setName('');
-    setDesc('');
-    setMembers('');
+    const res = await apiPost('/projects', { name, description, members: [] });
+    setName(''); setDescription('');
+    setProjects([res, ...projects]);
+  }
+
+  async function delProject(id) {
+    if (!window.confirm('Delete project?')) return;
+    await apiDelete('/projects/' + id);
+    setProjects(projects.filter(p => p._id !== id));
+  }
+
+  function openEdit(p) {
+    setEditProject(p);
+    setAssignIds(p.members?.map(String) || []);
+    setEditOpen(true);
+  }
+
+  async function saveMembers() {
+    const add = assignIds;
+    await apiPatch(`/projects/${editProject._id}/members`, { add, remove: [] });
+    setEditOpen(false);
     load();
   }
 
-  async function openAssign(id) {
-    const ids = prompt('Comma separated user ids to add:');
-    if (!ids) return;
-    const add = ids.split(',').map(s => s.trim()).filter(Boolean);
-    await apiPatch('/projects/' + id + '/members', { add, remove: [] });
-    load();
-  }
-
-  const userMap = Object.fromEntries(users.map(u => [u._id, u.email]));
+  const devsAndTesters = useMemo(
+    () => (Array.isArray(users) ? users.filter(u => u.role === 'developer' || u.role === 'tester') : []),
+    [users]
+  );
 
   return (
     <div>
-      <h2 className="text-2xl mb-4">Projects</h2>
+      <h2 className="text-2xl font-semibold mb-6">Projects</h2>
 
-      {/* Create project form (admin only) */}
-      {role === 'admin' && (
-        <div className="bg-white p-4 rounded shadow mb-6">
-          <form className="grid grid-cols-1 gap-3" onSubmit={create}>
-            <input
-              className="p-2 border rounded"
-              placeholder="Project name"
-              value={name}
-              onChange={e => setName(e.target.value)}
-            />
-            <textarea
-              className="p-2 border rounded"
-              placeholder="Description"
-              value={desc}
-              onChange={e => setDesc(e.target.value)}
-            />
-            <input
-              className="p-2 border rounded"
-              placeholder="member ids comma separated"
-              value={members}
-              onChange={e => setMembers(e.target.value)}
-            />
-            <div className="text-right">
-              <button className="px-4 py-2 bg-blue-600 text-white rounded">
-                Add Project
-              </button>
+      {isAdmin && (
+        <div className="bg-white p-6 rounded-2xl shadow-sm mb-6">
+          <form onSubmit={addProject} className="grid gap-3">
+            <input className="p-3 border rounded-lg" placeholder="Project name"
+                   value={name} onChange={e=>setName(e.target.value)} />
+            <textarea className="p-3 border rounded-lg" rows={3} placeholder="Enter project description"
+                      value={description} onChange={e=>setDescription(e.target.value)} />
+            <div>
+              <button className="px-5 py-3 bg-blue-600 text-white rounded-lg">Add Project</button>
             </div>
           </form>
         </div>
       )}
 
-      <div className="bg-white p-4 rounded shadow">
-        <h3 className="mb-3 font-semibold">Project List</h3>
+      <div className="bg-white rounded-2xl p-6 shadow-sm">
         <table className="w-full">
           <thead>
-            <tr className="text-left border-b">
-              <th>Project Name</th>
-              <th>Description</th>
-              <th>Members</th>
-              <th>Actions</th>
+            <tr className="text-left text-sm text-gray-500 border-b">
+              <th className="py-2">Project Name</th>
+              <th className="py-2">Description</th>
+              <th className="py-2">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {projects.map(p => (
-              <tr key={p._id} className="hover:bg-gray-50">
-                <td className="py-2"><a className="text-blue-600" href={'/projects/' + p._id + '/tracker'}>{p.name}</a></td>
-                <td>{p.description}</td>
-                <td>
-                  {(p.members || [])
-                    .map(m => (userMap[m] ? userMap[m] : (m.email || m)))
-                    .join(', ')}
-                </td>
-                <td>
-                  {role === 'admin' && (
-                    <button className="text-blue-600 mr-3" onClick={() => openAssign(p._id)}>
-                      Assign
-                    </button>
-                  )}
+            {(Array.isArray(projects)?projects:[]).map(p=>(
+              <tr key={p._id} className="border-b">
+                <td className="py-3">{p.name}</td>
+                <td className="py-3 text-gray-600">{p.description || '—'}</td>
+                <td className="py-3">
+                  <div className="flex gap-3">
+                    <button onClick={()=>openEdit(p)} className="text-blue-600 hover:underline">✎ Edit</button>
+                    {isAdmin && (
+                      <button onClick={()=>delProject(p._id)} className="text-red-600 hover:underline">🗑 Delete</button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
+            {projects.length===0 && <tr><td className="py-6 text-gray-400">No projects</td></tr>}
           </tbody>
         </table>
       </div>
+
+      {/* Edit members modal */}
+      {editOpen && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl w-full max-w-xl p-6">
+            <div className="text-lg font-semibold mb-4">Assign Members</div>
+            <div className="space-y-2 max-h-80 overflow-auto border rounded-lg p-3">
+              {devsAndTesters.map(u=>(
+                <label key={u._id} className="flex items-center gap-3 py-1">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4"
+                    checked={assignIds.includes(String(u._id))}
+                    onChange={(e)=>{
+                      const id = String(u._id);
+                      setAssignIds(s => e.target.checked ? [...s, id] : s.filter(x => x!==id));
+                    }}
+                  />
+                  <span className="text-sm">{u.email} <em className="text-gray-400">({u.role})</em></span>
+                </label>
+              ))}
+            </div>
+            <div className="flex justify-end gap-3 mt-5">
+              <button onClick={()=>setEditOpen(false)} className="px-4 py-2 rounded-lg border">Cancel</button>
+              <button onClick={saveMembers} className="px-4 py-2 rounded-lg bg-blue-600 text-white">Save</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
-};
-
-export default ProjectsPage;
+}

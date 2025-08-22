@@ -1,169 +1,107 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { apiGet, apiPost, apiDelete } from '../api';
-import { useNavigate } from 'react-router-dom';
 
-const UsersPage = () => {
-  const [users, setUsers] = useState([]);
+import React, { useEffect, useState } from 'react';
+import { apiDelete, apiGet, apiPost } from '../api';
+
+export default function UsersPage() {
+  const [list, setList] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // form
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('tester');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
-  const navigate = useNavigate();
-  const myRole = localStorage.getItem('role') || '';
-
-  useEffect(() => {
-    // defence-in-depth: redirect non-admins away
-    if (myRole !== 'admin') { navigate('/dashboard', { replace: true }); return; }
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const [role, setRole] = useState('developer');
+  const [err, setErr] = useState('');
+  const [ok, setOk] = useState('');
 
   async function load() {
+    setLoading(true);
     try {
-      setLoading(true);
       const res = await apiGet('/users');
-      // the API might return { data: [...] } or an array directly
-      setUsers(res.data || res);
-    } catch (e) {
-      console.error(e);
-      setError(e.message || 'Failed to load users');
-    } finally {
-      setLoading(false);
-    }
+      setList(res.data || res || []);
+    } finally { setLoading(false); }
   }
 
-  async function create(e) {
+  useEffect(() => { load(); }, []);
+
+  async function addUser(e) {
     e.preventDefault();
+    setErr(''); setOk('');
     try {
-      await apiPost('/users', { email, password, role });
-      setEmail(''); setPassword(''); setRole('tester');
+      await apiPost('/auth/register', { email, password, role });
+      setEmail(''); setPassword(''); setRole('developer');
+      setOk('User created');
       load();
-    } catch (e) {
-      console.error(e);
-      setError(e.message || 'Failed to create user');
-    }
+    } catch (e) { setErr(e.message || 'Failed'); }
   }
 
-  async function remove(id) {
-    if (!window.confirm('Delete user?')) return;
-    try {
-      await apiDelete('/users/' + id);
-      load();
-    } catch (e) {
-      console.error(e);
-      setError(e.message || 'Failed to delete user');
-    }
+  async function removeUser(id) {
+    if (!window.confirm('Delete this user?')) return;
+    await apiDelete('/users/' + id);
+    load();
   }
 
-  // filtered list (client side). Matches id, email, username or role (case insensitive)
-  const filteredUsers = useMemo(() => {
-    if (!searchTerm) return users;
-    const s = searchTerm.toLowerCase().trim();
-    return users.filter(u => {
-      const fields = [
-        u.email || '',
-        u.role || '',
-        u._id || '',
-        u.username || ''      // if your API returns username
-      ];
-      return fields.some(f => f.toLowerCase().includes(s));
-    });
-  }, [users, searchTerm]);
+  const RoleBadge = ({ r }) => (
+    <span className={`px-2 py-1 rounded-full text-xs ${r==='developer'?'bg-blue-100 text-blue-700':r==='tester'?'bg-green-100 text-green-700':'bg-purple-100 text-purple-700'}`}>
+      {r[0].toUpperCase()+r.slice(1)}
+    </span>
+  );
 
   return (
     <div>
-      <h2 className="text-2xl mb-4">User Management</h2>
+      <h2 className="text-2xl font-semibold mb-6">User Management</h2>
 
-      {error && <div className="text-red-600 mb-4">{error}</div>}
+      <div className="bg-white rounded-2xl p-6 shadow-sm mb-8">
+        <div className="text-lg font-medium mb-4">Add New User</div>
+        <form onSubmit={addUser} className="grid md:grid-cols-4 gap-3">
+          <input className="p-3 border rounded-lg" placeholder="Enter username (email)"
+                 value={email} onChange={e=>setEmail(e.target.value)} />
+          <input className="p-3 border rounded-lg" placeholder="Enter password" type="password"
+                 value={password} onChange={e=>setPassword(e.target.value)} />
+          <select className="p-3 border rounded-lg" value={role} onChange={e=>setRole(e.target.value)}>
+            <option value="developer">Developer</option>
+            <option value="tester">Tester</option>
+            <option value="admin">Admin</option>
+          </select>
+          <div><button className="px-5 py-3 bg-blue-600 text-white rounded-lg">Add User</button></div>
+        </form>
+        {err && <div className="text-red-600 text-sm mt-2">{err}</div>}
+        {ok && <div className="text-green-600 text-sm mt-2">{ok}</div>}
+      </div>
 
-      {/* Add user form only visible to admin (route already protected as well) */}
-      {myRole === 'admin' && (
-        <div className="bg-white p-4 rounded shadow mb-6">
-          <form className="grid grid-cols-3 gap-3" onSubmit={create}>
-            <input
-              className="p-2 border rounded"
-              placeholder="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-            />
-            <input
-              className="p-2 border rounded"
-              placeholder="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-            />
-            <select
-              className="p-2 border rounded"
-              value={role}
-              onChange={e => setRole(e.target.value)}
-            >
-              <option value="tester">tester</option>
-              <option value="developer">developer</option>
-              <option value="admin">admin</option>
-            </select>
-            <div className="col-span-3 text-right">
-              <button className="px-4 py-2 bg-blue-600 text-white rounded">Add User</button>
-            </div>
-          </form>
+      <div className="bg-white rounded-2xl p-6 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <div className="font-semibold">User List</div>
+          <input className="border rounded-lg p-2 text-sm" placeholder="Search users…" onChange={(e)=>{
+            const q=e.target.value.toLowerCase();
+            const base = (list.data || list) ?? list;
+            const arr = Array.isArray(base)?base:[];
+            setList(arr.filter(u => (u.email||'').toLowerCase().includes(q)));
+          }} />
         </div>
-      )}
-
-      <div className="bg-white p-4 rounded shadow">
-        {/* header + search (search on the right) */}
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold text-lg">User List</h3>
-          <div className="w-64">
-            <input
-              className="w-full p-2 border rounded placeholder-gray-400"
-              placeholder="Search users..."
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-            />
-          </div>
-        </div>
-
-        {loading ? <div>Loading...</div> : (
-          <>
-            {filteredUsers.length === 0 ? (
-              <div className="py-8 text-center text-gray-600">No users found.</div>
-            ) : (
-              <table className="w-full">
-                <thead>
-                  <tr className="text-left border-b">
-                    <th className="py-2">ID</th>
-                    <th className="py-2">Email</th>
-                    <th className="py-2">Role</th>
-                    <th className="py-2">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredUsers.map(u => (
-                    <tr key={u._id} className="hover:bg-gray-50">
-                      <td className="py-2 break-words max-w-xs">{u._id}</td>
-                      <td className="py-2">{u.email}</td>
-                      <td className="py-2">
-                        {/* small pill style for role to look similar to screenshot */}
-                        <span className="inline-block px-3 py-1 rounded-full text-sm bg-gray-100">
-                          {u.role}
-                        </span>
-                      </td>
-                      <td className="py-2">
-                        {myRole === 'admin'
-                          ? <button className="text-red-600" onClick={() => remove(u._id)}>Delete</button>
-                          : null}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </>
-        )}
+        <table className="w-full">
+          <thead>
+            <tr className="text-left text-sm text-gray-500 border-b">
+              <th className="py-2">Username</th>
+              <th className="py-2">Password</th>
+              <th className="py-2">Role</th>
+              <th className="py-2"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {!loading && (Array.isArray(list)?list:[]).map(u=>(
+              <tr key={u._id} className="border-b">
+                <td className="py-3">{u.email}</td>
+                <td className="py-3">********</td>
+                <td className="py-3"><RoleBadge r={u.role} /></td>
+                <td className="py-3 text-right">
+                  <button onClick={()=>removeUser(u._id)} className="text-red-600 hover:underline">Delete</button>
+                </td>
+              </tr>
+            ))}
+            {loading && <tr><td className="py-6 text-gray-400">Loading…</td></tr>}
+          </tbody>
+        </table>
       </div>
     </div>
   );
-};
-
-export default UsersPage;
+}

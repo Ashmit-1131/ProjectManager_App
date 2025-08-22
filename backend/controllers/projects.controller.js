@@ -30,13 +30,42 @@ async function createProject(req, res, next) {
   } catch (e) { next(e); }
 }
 
+
 async function getProject(req, res, next) {
   try {
-    const proj = await Project.findById(req.params.id).populate('members', 'email role');
-    if (!proj) throw new AppError(404, 'Project not found');
-    res.json(proj);
-  } catch (e) { next(e); }
+    const projectId = req.params.id;
+    const requester = req.user || {};
+
+    // fetch project and populate members (email + role)
+    const proj = await Project.findById(projectId).populate('members', 'email role');
+    if (!proj) {
+      throw new AppError(404, 'Project not found');
+    }
+
+    // If admin -> return full project
+    const role = requester.role;
+    const requesterId = String(requester.id || requester._id || requester.userId || '');
+
+    if (role === 'admin') {
+      return res.json(proj);
+    }
+
+    // For tester/developer -> enforce membership
+    // proj.members may be an array of ObjectId (if not populated) or objects (if populated).
+    const memberIds = (proj.members || []).map(m => String(m._id ?? m)); // handles both populated and plain ids
+
+    if (!memberIds.includes(requesterId)) {
+      // Not assigned -> forbid access
+      throw new AppError(403, 'You are not assigned to this project');
+    }
+
+    // OK -> return project
+    return res.json(proj);
+  } catch (e) {
+    return next(e);
+  }
 }
+
 
 async function patchProject(req, res, next) {
   try {
@@ -84,7 +113,9 @@ async function patchMembers(req, res, next) {
  */
 async function getAssignedProjects(req, res, next) {
   try {
-    const uid = req.user.id;
+    const uid = String(req.user?.id || req.user?._id || req.user?.userId || '');
+    if (!uid) return next(new AppError(401, 'Unauthenticated'));
+
     const projects = await Project.find({ members: uid }).populate('members', 'email role');
     res.json({ data: projects, total: projects.length });
   } catch (e) { next(e); }

@@ -18,7 +18,7 @@ app.use(cors());
 app.use(helmet());
 app.use(morgan('dev'));
 
-const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200 });
+const limiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 200 });
 app.use(limiter);
 
 app.get('/Project_Manager_app', (req, res) => res.json({ ok: true }));

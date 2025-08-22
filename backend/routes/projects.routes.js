@@ -18,7 +18,9 @@ router.get('/my-projects', requireRole('tester', 'developer', 'admin'), getAssig
 // Admin-only endpoints
 router.get('/', requireRole('admin'), listProjects);
 router.post('/', requireRole('admin'), createProject);
-router.get('/:id', requireRole('admin'), getProject);
+// allow tester, developer, admin to hit this route; controller enforces membership
+router.get('/:id', requireRole('tester','developer','admin'), getProject);
+
 router.patch('/:id', requireRole('admin'), patchProject);
 router.delete('/:id', requireRole('admin'), deleteProject);
 router.patch('/:id/members', requireRole('admin'), patchMembers);
